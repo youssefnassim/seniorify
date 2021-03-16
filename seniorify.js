@@ -33,26 +33,49 @@ const callback = function(mutationsList) {
                 if (experience !== null) {
                     console.log(experience.years, experience.sentence)
                     let realSeniorityLevel = getSeniorityLevel(experience.years)
-                    if (realSeniorityLevel !== seniorityLevel) {
-                        // replace old Seniority level node
-                        let newElement = document.createElement('div')
-                        newElement.innerHTML = `
-                            <span style="text-decoration:line-through">
-                                ${seniorityLevel}
-                            </span> \u00A0${realSeniorityLevel}
-                        `
-                        mutation.addedNodes[0].replaceWith(newElement)
-
-                    }
                     // replace job details node 
                     // TODO: replace only if tab is at '/jobs/view' url & deal with '/jobs/search'
-                    let highlightedSentence = '<span style="background-color:yellow;">' + experience.sentence; + '</span>'
-                    console.log(highlightedSentence)
-                    document.querySelector(jobDescClass).innerHTML = 
-                    document.querySelector(jobDescClass).innerHTML.replace(
-                        experience.sentence,
-                        '<span style="background-color:yellow;">' + experience.sentence + '</span>'
-                    )
+                    if (window.location.href.includes('/jobs/view/')) {
+                        if (realSeniorityLevel !== seniorityLevel) {
+                            // replace old Seniority level node
+                            let newElement = document.createElement('div')
+                            newElement.innerHTML = `
+                                <span style="text-decoration:line-through">
+                                    ${seniorityLevel}
+                                </span> \u00A0${realSeniorityLevel}
+                            `
+                            mutation.addedNodes[0].replaceWith(newElement)
+
+                        }
+                    
+                        let highlightedSentence = '<span style="background-color:yellow;">' + experience.sentence; + '</span>'
+                        console.log(highlightedSentence)
+                        document.querySelector(jobDescClass).innerHTML = 
+                        document.querySelector(jobDescClass).innerHTML.replace(
+                            experience.sentence,
+                            '<span style="background-color:yellow;">' + experience.sentence + '</span>'
+                        )
+                    } else {
+                        let newElement = document.createElement('div')
+                        newElement.setAttribute('id', 'seniorityWarning')
+                        newElement.style.color = 'white'
+                        newElement.style.padding = '5px 8px'
+                        newElement.style.fontSize = '12px'
+                    
+                        if (realSeniorityLevel !== seniorityLevel) {
+                            newElement.style.backgroundColor = '#ff7675'
+                            newElement.innerHTML = `
+                                Seniority level is not accurate. It's rather ${realSeniorityLevel}.
+                            `
+                            
+                        } else {
+                            newElement.style.backgroundColor = '#55efc4'
+                            newElement.innerHTML = `
+                                Seniority level is accurate.
+                            `
+                        }
+                        document.querySelector('.jobs-search__right-rail').prepend(newElement);
+                    }
                 }
             }
         }
@@ -71,6 +94,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.message === 'url changed!') {
         console.log(`New URL: ${request.url}`)
         inserted = false
+        // For the '/jobs/search/' page
+        if (document.contains(document.getElementById('seniorityWarning'))) {
+            document.getElementById('seniorityWarning').remove()
+        }
     }
 });
 
