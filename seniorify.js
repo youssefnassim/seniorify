@@ -100,12 +100,19 @@ function getExperience(jobDetailsHTML) {
             let re = new RegExp(reString, 'gmis')
             let approxSentence = jobDetailsHTML.match(re)
             console.log(approxSentence)
+
+            // Split all sentences by HTML tags in case there are any tags within a sentence.
+            // Because our future wrapping span tags will stop at the first encoutered tag.
+            // (eg. " codeplex or github link;</li><li>1-3+ years experience in a similar development ")
+            // In the real life example above, only the -meaningless- first part of the sentence will get highlihted. 
+            approxSentence = approxSentence.flatMap(elem => elem.split(/<.+?>/gi))
+            
             approxSentence.forEach(sentence => {
                 if (['xperience', 'xpérience'].some(elem => sentence.includes(elem))) {
                     allExpSentences.push(sentence)
     
                     // get years number
-                    allYearsNumbers.push(sentence.match(/\d{1,2}/g)[0])
+                    allYearsNumbers.push(Math.max(...sentence.match(/\d{1,2}/g)))
                 }
             })
               
@@ -113,7 +120,7 @@ function getExperience(jobDetailsHTML) {
     }
     console.log(allExpSentences)
     console.log(allYearsNumbers)
-    if (allExpSentences.length > 1) {
+    if (allExpSentences.length > 0) {
         return {
             sentence: allExpSentences[allExpSentences.length - 1],
             years: Math.max(...allYearsNumbers)
