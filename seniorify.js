@@ -7,7 +7,7 @@
 
 let inserted = false
 
-const jobDescClass = '#job-details span' 
+const jobDescClass = '#job-details' 
 const jobMetaClass = '.jobs-description__details'
 const seniorityLevels = ['Entry level', 'Associate', 'Mid-Senior level']
 
@@ -22,7 +22,11 @@ const callback = function(mutationsList) {
     // Use traditional 'for loops' for IE 11
     for(const mutation of mutationsList) {
         if (mutation.type === 'childList') {
-            if (!inserted && mutation.addedNodes[0] && seniorityLevels.includes(mutation.addedNodes[0].nodeValue)) {
+            if (!inserted
+                && mutation.addedNodes[0] 
+                && seniorityLevels.includes(mutation.addedNodes[0].nodeValue)
+                && document.contains(document.querySelector(jobDescClass))
+            ) {
                 inserted = true
 
                 let seniorityLevel = mutation.addedNodes[0].nodeValue
@@ -35,26 +39,41 @@ const callback = function(mutationsList) {
                     let realSeniorityLevel = getSeniorityLevel(experience.years)
                     // replace job details node 
                     // TODO: replace only if tab is at '/jobs/view' url & deal with '/jobs/search'
-                    if (window.location.href.includes('/jobs/view/')) {
+                    if (window.location.href.includes('/jobs/')) {
                         if (realSeniorityLevel !== seniorityLevel) {
-                            // replace old Seniority level node
-                            let newElement = document.createElement('div')
-                            newElement.innerHTML = `
-                                <span style="text-decoration:line-through">
-                                    ${seniorityLevel}
-                                </span> \u00A0${realSeniorityLevel}
-                            `
-                            mutation.addedNodes[0].replaceWith(newElement)
+                            if (mutation.addedNodes[0].parentNode.parentNode.classList.contains('jobs-box__group')) {
+                                // replace old Seniority level node
+                                let sClone = mutation.addedNodes[0].parentNode.cloneNode(true)
+                                sClone.classList.add('seniorify')
+                                console.log(sClone)
+                                // console.log(sClone.children[sClone.children.length - 1])
+                                mutation.addedNodes[0].parentNode.parentNode.append(sClone)
+                                sClone.innerHTML = `
+                                    <span style="text-decoration:line-through">
+                                        ${seniorityLevel}
+                                    </span> \u00A0${realSeniorityLevel}
+                                `
+                                mutation.addedNodes[0].parentNode.style = 'display: none !important'
+                                // mutation.addedNodes[0].replaceWith(newElement)
+                            } else {
+                                
+                            }
 
                         }
                     
                         let highlightedSentence = '<span style="background-color:yellow;">' + experience.sentence; + '</span>'
                         console.log(highlightedSentence)
-                        document.querySelector(jobDescClass).innerHTML = 
-                        document.querySelector(jobDescClass).innerHTML.replace(
+                        // the cloaning is to bypass the rerender problem when ember
+                        // tries to rerender by removing child nodes but can't find them since 
+                        // we've edited them prior
+                        let clone = document.querySelector(jobDescClass).cloneNode(true)
+                        document.querySelector(jobDescClass).parentNode.prepend(clone)
+                        clone.classList.add('seniorify')
+                        clone.innerHTML = clone.innerHTML.replace(
                             experience.sentence,
                             '<span style="background-color:yellow;">' + experience.sentence + '</span>'
                         )
+                        document.querySelectorAll(jobDescClass)[1].style = 'display: none !important' 
                     } else {
                         let newElement = document.createElement('div')
                         newElement.setAttribute('id', 'seniorityWarning')
@@ -91,13 +110,22 @@ observer.observe(document, config);
 // Listener used to get URL changes to rerun operation
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       // listen for messages sent from background.js
-    if (request.message === 'url changed!') {
+    if (request.message === 'url changed!') { 
         console.log(`New URL: ${request.url}`)
+
+        if (document.contains(document.querySelector('.seniorify'))) {
+            // document.querySelector('.seniorify').remove()
+            Array.from(document.querySelectorAll('.seniorify')).forEach(elem => elem.remove())
+        }
+        // maybe replace with a class later
+        document.querySelector(jobDescClass).style = 'display: block !important'
         inserted = false
         // For the '/jobs/search/' page
         if (document.contains(document.getElementById('seniorityWarning'))) {
             document.getElementById('seniorityWarning').remove()
         }
+        // TODO: Deal with un-mutated nodes containing seniority level
+
     }
 });
 
