@@ -22,77 +22,67 @@ const callback = function(mutationsList) {
     // Use traditional 'for loops' for IE 11
     for(const mutation of mutationsList) {
         if (mutation.type === 'childList') {
-            if (!inserted
-                && mutation.addedNodes[0] 
-                && seniorityLevels.includes(mutation.addedNodes[0].nodeValue)
-                && document.contains(document.querySelector(jobDescClass))
+            let node = mutation.addedNodes[0]
+            let desc = document.querySelector(jobDescClass)
+            if (!inserted 
+                && node 
+                && seniorityLevels.includes(node.nodeValue)
+                && document.contains(desc)
+                // This one is useful in the search page where we can sometimes get the
+                // experience level while the description is still loading
+                && desc.textContent.trim() !== ''
             ) {
                 inserted = true
 
-                let seniorityLevel = mutation.addedNodes[0].nodeValue
+                let seniorityLevel = node.nodeValue
                 console.log(seniorityLevel)
 
-                let experience = getExperience(document.querySelector(jobDescClass).innerHTML)
+                let experience = getExperience(desc.innerHTML)
 
                 if (experience !== null) {
                     console.log(experience.years, experience.sentence)
                     let realSeniorityLevel = getSeniorityLevel(experience.years)
                     // replace job details node 
-                    // TODO: replace only if tab is at '/jobs/view' url & deal with '/jobs/search'
-                    if (window.location.href.includes('/jobs/')) {
+                    if (window.location.href.includes('/jobs/view')) {
                         if (realSeniorityLevel !== seniorityLevel) {
-                            if (mutation.addedNodes[0].parentNode.parentNode.classList.contains('jobs-box__group')) {
-                                // replace old Seniority level node
-                                let sClone = mutation.addedNodes[0].parentNode.cloneNode(true)
-                                sClone.classList.add('seniorify')
-                                console.log(sClone)
-                                // console.log(sClone.children[sClone.children.length - 1])
-                                mutation.addedNodes[0].parentNode.parentNode.append(sClone)
-                                sClone.innerHTML = `
-                                    <span style="text-decoration:line-through">
-                                        ${seniorityLevel}
-                                    </span> \u00A0${realSeniorityLevel}
-                                `
-                                mutation.addedNodes[0].parentNode.style = 'display: none !important'
-                                // mutation.addedNodes[0].replaceWith(newElement)
-                            } else {
-                                
-                            }
-
+                            // replace old Seniority level node
+                            let correctedSeniorityLevel = `
+                                <span style="text-decoration:line-through">
+                                    ${seniorityLevel}
+                                </span> \u00A0${realSeniorityLevel}
+                            `
+                            let clone = node.parentNode.cloneNode(true)
+                            clone.classList.add('seniorify')
+                            console.log(clone)
+                            clone.innerHTML = correctedSeniorityLevel
+                            
+                            node.parentNode.parentNode.append(clone)
+                            node.parentNode.style = 'display: none !important'
                         }
                     
-                        let highlightedSentence = '<span style="background-color:yellow;">' + experience.sentence; + '</span>'
+                        let highlightedSentence = `<span style="background-color:yellow;"> ${experience.sentence} </span>`
                         console.log(highlightedSentence)
-                        // the cloaning is to bypass the rerender problem when ember
-                        // tries to rerender by removing child nodes but can't find them since 
-                        // we've edited them prior
-                        let clone = document.querySelector(jobDescClass).cloneNode(true)
-                        document.querySelector(jobDescClass).parentNode.prepend(clone)
+                        
+                        let clone = desc.cloneNode(true)
                         clone.classList.add('seniorify')
-                        clone.innerHTML = clone.innerHTML.replace(
-                            experience.sentence,
-                            '<span style="background-color:yellow;">' + experience.sentence + '</span>'
-                        )
+                        clone.innerHTML = clone.innerHTML.replace(experience.sentence, highlightedSentence)
+                        
+                        desc.parentNode.prepend(clone)
                         document.querySelectorAll(jobDescClass)[1].style = 'display: none !important' 
                     } else {
-                        let newElement = document.createElement('div')
-                        newElement.setAttribute('id', 'seniorityWarning')
-                        newElement.style.color = 'white'
-                        newElement.style.padding = '5px 8px'
-                        newElement.style.fontSize = '12px'
-                    
-                        if (realSeniorityLevel !== seniorityLevel) {
-                            newElement.style.backgroundColor = '#ff7675'
-                            newElement.innerHTML = `
-                                Seniority level is not accurate. It's rather ${realSeniorityLevel}.
-                            `
-                            
-                        } else {
-                            newElement.style.backgroundColor = '#55efc4'
-                            newElement.innerHTML = `
-                                Seniority level is accurate.
-                            `
+                        let elementStyles = {
+                            padding: '5px 8px',
+                            fontSize: '12px',
+                            color: 'white',
+                            backgroundColor: realSeniorityLevel !== seniorityLevel ? '#ff7675' : '#55efc4'
                         }
+                        
+                        let content = realSeniorityLevel !== seniorityLevel ?
+                            `Seniorify found this job requires ${experience.years} years of experience. It's rather ${realSeniorityLevel}.`
+                            : `Seniority level is accurate.`
+                        
+                        let newElement = createElement('div', elementStyles, content)
+
                         document.querySelector('.jobs-search__right-rail').prepend(newElement);
                     }
                 }
@@ -118,7 +108,9 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             Array.from(document.querySelectorAll('.seniorify')).forEach(elem => elem.remove())
         }
         // maybe replace with a class later
-        document.querySelector(jobDescClass).style = 'display: block !important'
+        if (document.contains(document.querySelector(jobDescClass))){
+            document.querySelector(jobDescClass).style = 'display: block !important'
+        }
         inserted = false
         // For the '/jobs/search/' page
         if (document.contains(document.getElementById('seniorityWarning'))) {
@@ -128,6 +120,16 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 
     }
 });
+
+function createElement(type, styles, content) {
+    let element = document.createElement(type)
+
+    Object.assign(element.style, styles)
+
+    element.textContent = content
+
+    return element
+}
 
 /**
  * Tries to find sentences which have a years indication within
@@ -139,11 +141,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
  */
 function getExperience(jobDetailsHTML) {
     // match anything like X[X[+]] years
-    let allYearsOccurences = jobDetailsHTML.match(/\d{1,2}\+?\s?(ans|an|ann(é|e)es|ann(é|e)e|years|year)/gmi)
+    let allYearsOccurences = jobDetailsHTML.match(/(\s|&nbsp;)\d{1,2}\+?\s?(ans|an|ann(é|e)es|ann(é|e)e|years|year)/gmi)
     console.log(allYearsOccurences)
 
     let allExpSentences = []
-    let allYearsNumbers = []
     // get those that have 'experience' nearby, which is -/+ 7 words or avg -/+ 40 characters
     if (allYearsOccurences !== null) {
         allYearsOccurences.forEach(occurence => {
@@ -164,22 +165,19 @@ function getExperience(jobDetailsHTML) {
             
             approxSentence.forEach(sentence => {
                 if (['xperience', 'xpérience'].some(elem => sentence.includes(elem))) {
-                    allExpSentences.push(sentence)
-    
-                    // get years number
-                    allYearsNumbers.push(Math.max(...sentence.match(/\d{1,2}/g)))
+                    allExpSentences.push({
+                        years: Math.max(...sentence.match(/\d{1,2}/g)),
+                        sentence
+                    })
                 }
             })
               
         })
     }
     console.log(allExpSentences)
-    console.log(allYearsNumbers)
+    // console.log(allYearsNumbers)
     if (allExpSentences.length > 0) {
-        return {
-            sentence: allExpSentences[allExpSentences.length - 1],
-            years: Math.max(...allYearsNumbers)
-        }
+        return allExpSentences.reduce((a, b) => a.years > b.years ? a : b)
     }
     else return null
 }
